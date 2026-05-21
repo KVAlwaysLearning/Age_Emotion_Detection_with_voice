@@ -7,21 +7,21 @@ from transformers import pipeline, AutoModelForAudioClassification, AutoModel, A
 # 1. Download and Extract Model from Drive
 @st.cache_resource
 def setup_models():
-    # 1. Download and Extract logic
+    # The folder ID is the part of the URL after "folders/"
+    folder_id = '1Vw_CRVKAlsVikX-GQB1hvaxFnPuhWBKA'
+    
+    # 1. Download the entire folder structure
     if not os.path.exists("./Models"):
-        file_id = '1Vw_CRVKAlsVikX-GQB1hvaxFnPuhWBKA'
-        url = f'https://drive.google.com/uc?id={file_id}'
-        # Download the zip file
-        gdown.download(url, 'models.zip', quiet=False)
-        
-        # Extract the archive
-        with zipfile.ZipFile('models.zip', 'r') as zip_ref:
-            zip_ref.extractall('.') # This will create the ./Models folder
+        # This creates a folder named 'Models' (or whatever it's called on Drive)
+        # and downloads all nested files into it.
+        gdown.download_folder(id=folder_id, output='./Models', quiet=False)
     
-    # 2. Initialize Variables 
-    # Use the path "./Models/" as per your folder structure
-    base_path = "./Models"
+    # 2. Initialize Pipelines
+    # Note: Ensure the folder names match exactly what was downloaded
+    # (Sometimes gdown nests them, so check the path if this fails)
+    base_path = "./Models" 
     
+    from transformers import pipeline
     gender_pipe = pipeline("audio-classification", model=f"{base_path}/gender_model")
     age_pipe = pipeline("automatic-speech-recognition", model=f"{base_path}/age_model")
     emotion_pipe = pipeline("audio-classification", model=f"{base_path}/emotion_model")
