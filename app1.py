@@ -60,22 +60,31 @@ if uploaded_file:
         # Age Detection
         age_results = age_pipe(y)
 
-        # --- ADD THIS TO DEBUG ---
-        st.write("DEBUG - Age Result:", age_results)
-        # -------------------------
+        # Access the text field
+        age_text = age_results.get('text', '')
         
         # Reset pointer for next model
         uploaded_file.seek(0)
         
-        # Extract age: Handle if model returns text like "The age is 65"
-        # This regex finds the first number in the string
+        # Use regex to find ANY number in the text
         import re
-        match = re.search(r'\d+', str(age_results['text']))
-        age = int(match.group()) if match else 0
+        match = re.search(r'\d+', age_text)
         
-        if age == 0:
-            st.warning("Could not clearly detect age.")
-        
+        if match:
+            age = int(match.group())
+            st.success(f"Detected Age: {age}")
+        else:
+            # If the model didn't find a number, it might be outputting 
+            # a label like "kid" or "senior" instead of a number.
+            # Let's check for those keywords if no number is found
+            if "kid" in age_text.lower():
+                age = 10
+            elif "senior" in age_text.lower():
+                age = 70
+            else:
+                age = 0
+                st.warning(f"Could not parse age from: {age_text}")
+                
         # 3. Conditional Logic
         elif age > 60:
             # Detect Emotion for Senior Citizens
