@@ -1,8 +1,11 @@
 import streamlit as st
 import os
 import gdown
+import librosa  # <--- ADD THIS LINE
+import numpy as np
 import zipfile
 from transformers import pipeline, AutoModelForAudioClassification, AutoModel, AutoFeatureExtractor
+
 
 # 1. Download and Extract Model from Drive
 @st.cache_resource
