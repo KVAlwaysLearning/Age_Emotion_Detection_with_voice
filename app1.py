@@ -61,11 +61,14 @@ if uploaded_file:
         age_results = age_pipe(y)
         
         # DEBUG: See exactly what the new model returns
-        # st.write("Model output:", age_results) 
+        st.write("Model output:", age_results) 
+
+        # Stop execution here just to see the debug info
+        st.stop()
         
         # Most classification models return: [{'label': 'age_60-70', 'score': 0.9}]
         # We extract the label string
-        age_label = age_results[0]['label']
+        #age_label = age_results[0]['label']
         
         # Reset pointer for next model
         uploaded_file.seek(0)
