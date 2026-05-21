@@ -38,19 +38,24 @@ uploaded_file = st.file_uploader("Upload a male voice note", type=["wav", "mp3"]
 
 if uploaded_file:
     st.audio(uploaded_file, format='audio/wav')
+
+    # LOAD AUDIO PROPERLY
+    # 1. Load the audio file into a numpy array (y) and sampling rate (sr)
+    # librosa.load accepts the file-like object directly
+    y, sr = librosa.load(uploaded_file, sr=16000)
     
-    # 1. Gender Detection
-    gender_results = gender_pipe(uploaded_file)
+    # 2. Pass 'y' (the numpy array) to the pipes instead of 'uploaded_file'
+    gender_results = gender_pipe(y)
     gender = gender_results[0]['label'].lower()
     
     # Reset pointer for next model
     uploaded_file.seek(0)
     
-    if 'female' in gender:
+   if 'female' in gender:
         st.error("Upload male voice.")
     else:
-        # 2. Age Detection
-        age_results = age_pipe(uploaded_file)
+        # Age Detection
+        age_results = age_pipe(y)
         
         # Reset pointer for next model
         uploaded_file.seek(0)
