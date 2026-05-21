@@ -109,3 +109,9 @@ if uploaded_file:
             st.info(f"Detected Emotion: {emotion}")
         else:
             st.write(f"The person is in their {readable_label}. No further analysis required.")
+            
+            emotion_results = emotion_pipe(y)
+            best_emotion = max(emotion_results, key=lambda x: x['score'])
+            emotion = best_emotion['label']
+
+            st.write(f"{emotion}")
