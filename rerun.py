@@ -51,7 +51,7 @@ if uploaded_file:
     # Reset pointer for next model
     uploaded_file.seek(0)
     
-   if 'female' in gender:
+    if 'female' in gender:
         st.error("Upload male voice.")
     else:
         # Age Detection
