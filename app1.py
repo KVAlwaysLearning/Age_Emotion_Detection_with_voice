@@ -59,39 +59,25 @@ if uploaded_file:
     else:
         # 2. Age Detection (Updated for Classification Model)
         age_results = age_pipe(y)
-        
-        # DEBUG: See exactly what the new model returns
-        st.write("Model output:", age_results) 
-
-        # Stop execution here just to see the debug info
-        st.stop()
-        
-        # Most classification models return: [{'label': 'age_60-70', 'score': 0.9}]
-        # We extract the label string
-        #age_label = age_results[0]['label']
+                
+        # 2. Get the label with the highest confidence
+        # The output is a list of dicts: [{'label': 'sixties', 'score': 0.8}, ...]
+        top_result = max(age_results, key=lambda x: x['score'])
+        detected_age_label = top_result['label']
         
         # Reset pointer for next model
         uploaded_file.seek(0)
         
-        # Use regex to find the number inside the label string
-        import re
-        match = re.search(r'\d+', age_label)
-        
-        if match:
-            age = int(match.group())
-            st.success(f"Detected Age: {age}")
-        else:
-            age = 0
-            st.warning("Could not identify age from model output.")
-                
-        # 3. Conditional Logic
-        if age >= 60:
-            # Detect Emotion (Using your new classification model)
+        # 3. Logic to identify Senior Citizens
+        senior_categories = ["sixties", "seventies", "eighties", "nineties"]
+
+        if detected_age_label in senior_categories:
+            st.success(f"Detected Age: {detected_age_label.capitalize()} (Senior Citizen)")
+    
+            # Trigger emotion detection
             emotion_results = emotion_pipe(y)
-            # Classification models return [{'label': 'happy', 'score': 0.8}]
-            emotion = emotion_results[0]['label']
-            
-            st.info(f"Detected Emotion: {emotion}")
+            best_emotion = max(emotion_results, key=lambda x: x['score'])
+            st.info(f"Detected Emotion: {best_emotion['label']}")
         else:
-            # Standard Age detection for others
+            st.write(f"Detected Age: {detected_age_label.capitalize()}")
             st.write("Not a senior citizen.")
