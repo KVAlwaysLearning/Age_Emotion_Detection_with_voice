@@ -72,6 +72,8 @@ if uploaded_file:
             "LABEL_7": "eighties",
             "LABEL_8": "nineties"
         }
+
+        st.write("Raw Model Output:", age_results)
         
         # Get the highest confidence result
         best_result = max(age_results, key=lambda x: x['score'])
