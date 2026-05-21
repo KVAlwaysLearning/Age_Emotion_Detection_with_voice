@@ -53,3 +53,36 @@ if uploaded_file:
             st.write(f"Emotion: {emotion[0]['label']}")
         else:
             st.write(f"Age: {age}")
+
+if uploaded_file:
+    # 1. Gender Detection
+    # The output format depends on your model, usually a list of dicts: [{'label': '...', 'score': ...}]
+    gender_results = gender_pipe(uploaded_file)
+    # Adjust 'male'/'female' based on the exact labels your model outputs
+    gender = gender_results[0]['label'].lower()
+    
+    if 'female' in gender:
+        st.error("Upload male voice.")
+    else:
+        # 2. Age Detection
+        # Whisper-based models typically return {'text': '...'}
+        age_results = age_pipe(uploaded_file)
+        # Extract age string from text and convert to integer
+        # Note: You may need to add regex or string cleaning if the model returns sentences
+        try:
+            age = int(float(age_results['text'])) 
+        except ValueError:
+            age = 0 # Handle cases where age isn't a clean number
+            st.warning("Could not clearly detect age.")
+
+        # 3. Conditional Logic
+        if age > 60:
+            # Detect Emotion for Senior Citizens
+            emotion_results = emotion_pipe(uploaded_file)
+            emotion = emotion_results[0]['label']
+            st.success(f"Detected Age: {age} (Senior Citizen)")
+            st.info(f"Detected Emotion: {emotion}")
+        elif age > 0:
+            # Standard Age detection for others
+            st.success(f"Detected Age: {age}")
+# === ANALYSIS LOGIC END ===
