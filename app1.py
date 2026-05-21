@@ -26,7 +26,7 @@ def setup_models():
     
     from transformers import pipeline
     gender_pipe = pipeline("audio-classification", model=f"{base_path}/gender_model")
-    age_pipe = pipeline("automatic-speech-recognition", model=f"{base_path}/age_model")
+    age_pipe = pipeline("audio-classification", model=f"{base_path}/age_model")
     emotion_pipe = pipeline("audio-classification", model=f"{base_path}/emotion_model")
     
     return gender_pipe, age_pipe, emotion_pipe
