@@ -59,6 +59,25 @@ if uploaded_file:
     else:
         # 2. Age Detection (Updated for Classification Model)
         age_results = age_pipe(y)
+
+        # Define the label map for the 'minato-ryan' model
+        label_map = {
+            "LABEL_0": "teens",
+            "LABEL_1": "twenties",
+            "LABEL_2": "thirties",
+            "LABEL_3": "fourties",
+            "LABEL_4": "fifties",
+            "LABEL_5": "sixties",
+            "LABEL_6": "seventies",
+            "LABEL_7": "eighties",
+            "LABEL_8": "nineties"
+        }
+        
+        # Get the highest confidence result
+        best_result = max(age_results, key=lambda x: x['score'])
+        raw_label = best_result['label']
+
+        
                 
         # 2. Get the label with the highest confidence
         # The output is a list of dicts: [{'label': 'sixties', 'score': 0.8}, ...]
@@ -68,16 +87,23 @@ if uploaded_file:
         # Reset pointer for next model
         uploaded_file.seek(0)
         
-        # 3. Logic to identify Senior Citizens
-        senior_categories = ["sixties", "seventies", "eighties", "nineties"]
-
-        if detected_age_label in senior_categories:
-            st.success(f"Detected Age: {detected_age_label.capitalize()} (Senior Citizen)")
+       # Map to human-readable string
+        readable_label = label_map.get(raw_label, raw_label)
+        
+        st.success(f"Detected Age Group: {readable_label.capitalize()}")
+        
+        # 3. Conditional Logic for Senior Citizens
+        # Define which groups are considered "Senior"
+        senior_groups = ["sixties", "seventies", "eighties", "nineties"]
+        
+        if readable_label in senior_groups:
+            st.info("Senior citizen detected. Proceeding to emotion analysis...")
     
-            # Trigger emotion detection
+           # Detect Emotion
             emotion_results = emotion_pipe(y)
             best_emotion = max(emotion_results, key=lambda x: x['score'])
-            st.info(f"Detected Emotion: {best_emotion['label']}")
+            emotion = best_emotion['label']
+            
+            st.info(f"Detected Emotion: {emotion}")
         else:
-            st.write(f"Detected Age: {detected_age_label.capitalize()}")
-            st.write("Not a senior citizen.")
+            st.write(f"The person is in their {readable_label}. No further analysis required.")
