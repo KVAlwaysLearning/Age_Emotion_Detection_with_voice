@@ -57,41 +57,38 @@ if uploaded_file:
     if 'female' in gender:
         st.error("Upload male voice.")
     else:
-        # Age Detection
+        # 2. Age Detection (Updated for Classification Model)
         age_results = age_pipe(y)
-
-        # Access the text field
-        age_text = age_results.get('text', '')
+        
+        # DEBUG: See exactly what the new model returns
+        # st.write("Model output:", age_results) 
+        
+        # Most classification models return: [{'label': 'age_60-70', 'score': 0.9}]
+        # We extract the label string
+        age_label = age_results[0]['label']
         
         # Reset pointer for next model
         uploaded_file.seek(0)
         
-        # Use regex to find ANY number in the text
+        # Use regex to find the number inside the label string
         import re
-        match = re.search(r'\d+', age_text)
+        match = re.search(r'\d+', age_label)
         
         if match:
             age = int(match.group())
             st.success(f"Detected Age: {age}")
         else:
-            # If the model didn't find a number, it might be outputting 
-            # a label like "kid" or "senior" instead of a number.
-            # Let's check for those keywords if no number is found
-            if "kid" in age_text.lower():
-                age = 10
-            elif "senior" in age_text.lower():
-                age = 70
-            else:
-                age = 0
-                st.warning(f"Could not parse age from: {age_text}")
+            age = 0
+            st.warning("Could not identify age from model output.")
                 
         # 3. Conditional Logic
-        elif age > 60:
-            # Detect Emotion for Senior Citizens
-            emotion_results = emotion_pipe(uploaded_file)
+        if age >= 60:
+            # Detect Emotion (Using your new classification model)
+            emotion_results = emotion_pipe(y)
+            # Classification models return [{'label': 'happy', 'score': 0.8}]
             emotion = emotion_results[0]['label']
-            st.success(f"Detected Age: {age} (Senior Citizen)")
+            
             st.info(f"Detected Emotion: {emotion}")
         else:
             # Standard Age detection for others
-            st.success(f"Detected Age: {age}")
+            st.write("Not a senior citizen.")
