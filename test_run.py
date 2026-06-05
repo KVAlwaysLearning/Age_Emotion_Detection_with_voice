@@ -42,18 +42,43 @@ class AgeGenderModel(Wav2Vec2PreTrainedModel):
 # --- 2. SETUP & DOWNLOAD ---
 @st.cache_resource
 def setup_models():
+    from transformers import AutoModel
     
-    folder_id = '1AqPmnnIexWmEcp_IWBR1sCI4sGatxn-8'
+    folder_id = '1Vw_CRVKAlsVikX-GQB1hvaxFnPuhWBKA'
     if not os.path.exists("./Models"):
         gdown.download_folder(id=folder_id, output='./Models', quiet=False)
     
-    # Age Model Loading (Custom Architecture)
-    model_path = "./Models/age_model" 
+    model_path = "./Models/age_model"
+    
+    # 1. Load the processor and the base model (Wav2Vec2)
     processor = Wav2Vec2Processor.from_pretrained(model_path)
-    age_model = AgeGenderModel.from_pretrained(model_path)
+    base_model = AutoModel.from_pretrained(model_path)
+    
+    # 2. Re-attach your custom heads manually
+    # We use the config from the loaded base model
+    config = base_model.config
+    
+    # Re-instantiate your heads
+    age_head = ModelHead(config, 1)
+    gender_head = ModelHead(config, 3)
+    
+    # 3. Create a wrapper object that holds the base and the heads
+    class InferenceWrapper(nn.Module):
+        def __init__(self, base, age_h, gender_h):
+            super().__init__()
+            self.wav2vec2 = base
+            self.age = age_h
+            self.gender = gender_h
+        
+        def forward(self, input_values):
+            outputs = self.wav2vec2(input_values)
+            hidden_states = torch.mean(outputs[0], dim=1)
+            return self.age(hidden_states), torch.softmax(self.gender(hidden_states), dim=1)
+
+    age_model = InferenceWrapper(base_model, age_head, gender_head)
     age_model.eval()
     
-    # Gender & Emotion (Using standard pipelines)
+    # Load your existing pipelines
     gender_pipe = pipeline("audio-classification", model="./Models/gender_model")
     emotion_pipe = pipeline("audio-classification", model="./Models/emotion_model")
     
