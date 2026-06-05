@@ -5,7 +5,7 @@ import librosa
 import numpy as np
 import torch
 import torch.nn as nn
-from transformers import Wav2Vec2Processor, AutoModel
+from transformers import Wav2Vec2Processor, AutoModel, pipeline
 
 # --- 1. MODEL DEFINITIONS ---
 class ModelHead(nn.Module):
@@ -15,7 +15,7 @@ class ModelHead(nn.Module):
         self.dropout = nn.Dropout(config.final_dropout)
         self.out_proj = nn.Linear(config.hidden_size, num_labels)
 
-    def forward(self, features, **kwargs):
+    def forward(self, features):
         x = self.dropout(features)
         x = self.dense(x)
         x = torch.tanh(x)
@@ -30,6 +30,7 @@ class InferenceWrapper(nn.Module):
         self.gender = gender_h
     
     def forward(self, input_values):
+        # Extract features from the base Wav2Vec2 model
         outputs = self.wav2vec2(input_values)
         hidden_states = torch.mean(outputs.last_hidden_state, dim=1)
         age_logits = self.age(hidden_states)
@@ -44,18 +45,20 @@ def setup_models():
         gdown.download_folder(id=folder_id, output='./Models', quiet=False)
     
     model_path = "./Models/age_model"
+    
+    # Load processor and base model forced to float32
     processor = Wav2Vec2Processor.from_pretrained(model_path)
-    base_model = AutoModel.from_pretrained(model_path)
+    base_model = AutoModel.from_pretrained(model_path, torch_dtype=torch.float32)
     
-    # Initialize heads
-    age_head = ModelHead(base_model.config, 1)
-    gender_head = ModelHead(base_model.config, 3)
+    # Initialize and cast heads to float32
+    age_head = ModelHead(base_model.config, 1).to(torch.float32)
+    gender_head = ModelHead(base_model.config, 3).to(torch.float32)
     
-    # Wrap model
+    # Wrap and set to evaluation mode
     age_model = InferenceWrapper(base_model, age_head, gender_head)
     age_model.eval()
     
-    from transformers import pipeline
+    # Load separate pipelines
     gender_pipe = pipeline("audio-classification", model="./Models/gender_model")
     emotion_pipe = pipeline("audio-classification", model="./Models/emotion_model")
     
@@ -71,23 +74,24 @@ if uploaded_file:
     st.audio(uploaded_file, format='audio/wav')
     y, sr = librosa.load(uploaded_file, sr=16000)
     
-    # 1. Gender check
+    # 1. Gender check using pipeline
     gender_results = gender_pipe(y)
-    gender = gender_results[0]['label'].lower()
+    gender_label = gender_results[0]['label'].lower()
     
-    if 'female' in gender:
-        st.error("Upload male voice.")
+    if 'female' in gender_label:
+        st.error("Upload a male voice note.")
     else:
-        # 2. Age Prediction (Corrected unpacking)
+        # 2. Age Prediction using Custom Model
         inputs = processor(y, sampling_rate=16000, return_tensors="pt")
+        input_values = inputs.input_values.to(torch.float32)
+        
         with torch.no_grad():
-            # Now correctly receiving only two values
-            logits_age, _ = age_model(inputs.input_values)
+            logits_age, _ = age_model(input_values)
         
         age = int(logits_age.item() * 100)
         
         # 3. Logic
-        if age == 0:
+        if age <= 0:
             st.warning("Could not clearly detect age.")
         elif age > 60:
             emotion_results = emotion_pipe(y)
