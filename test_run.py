@@ -1,84 +1,95 @@
 import streamlit as st
 import os
 import gdown
-import librosa  # <--- ADD THIS LINE
+import librosa
 import numpy as np
-import zipfile
-from transformers import pipeline, AutoModelForAudioClassification, AutoModel, AutoFeatureExtractor
+import torch
+import torch.nn as nn
+import re
+from transformers import pipeline, Wav2Vec2Processor, Wav2Vec2Model, Wav2Vec2PreTrainedModel
 
+# --- 1. MODEL DEFINITIONS (Required for Age Model) ---
+class ModelHead(nn.Module):
+    def __init__(self, config, num_labels):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dropout = nn.Dropout(config.final_dropout)
+        self.out_proj = nn.Linear(config.hidden_size, num_labels)
 
-# 1. Download and Extract Model from Drive
+    def forward(self, features, **kwargs):
+        x = self.dropout(features)
+        x = self.dense(x)
+        x = torch.tanh(x)
+        x = self.dropout(x)
+        return self.out_proj(x)
+
+class AgeGenderModel(Wav2Vec2PreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+        self.wav2vec2 = Wav2Vec2Model(config)
+        self.age = ModelHead(config, 1)
+        self.gender = ModelHead(config, 3)
+        self.init_weights()
+
+    def forward(self, input_values):
+        outputs = self.wav2vec2(input_values)
+        hidden_states = torch.mean(outputs[0], dim=1)
+        logits_age = self.age(hidden_states)
+        logits_gender = torch.softmax(self.gender(hidden_states), dim=1)
+        return hidden_states, logits_age, logits_gender
+
+# --- 2. SETUP & DOWNLOAD ---
 @st.cache_resource
 def setup_models():
-    # The folder ID is the part of the URL after "folders/"
-    folder_id = '1Vw_CRVKAlsVikX-GQB1hvaxFnPuhWBKA'
     
-    # 1. Download the entire folder structure
+    folder_id = '1AqPmnnIexWmEcp_IWBR1sCI4sGatxn-8'
     if not os.path.exists("./Models"):
-        # This creates a folder named 'Models' (or whatever it's called on Drive)
-        # and downloads all nested files into it.
         gdown.download_folder(id=folder_id, output='./Models', quiet=False)
     
-    # 2. Initialize Pipelines
-    # Note: Ensure the folder names match exactly what was downloaded
-    # (Sometimes gdown nests them, so check the path if this fails)
-    base_path = "./Models" 
+    # Age Model Loading (Custom Architecture)
+    model_path = "./Models/age_model" 
+    processor = Wav2Vec2Processor.from_pretrained(model_path)
+    age_model = AgeGenderModel.from_pretrained(model_path)
+    age_model.eval()
     
-    from transformers import pipeline
-    gender_pipe = pipeline("audio-classification", model=f"{base_path}/gender_model")
-    age_pipe = pipeline("automatic-speech-recognition", model=f"{base_path}/age_model")
-    emotion_pipe = pipeline("audio-classification", model=f"{base_path}/emotion_model")
+    # Gender & Emotion (Using standard pipelines)
+    gender_pipe = pipeline("audio-classification", model="./Models/gender_model")
+    emotion_pipe = pipeline("audio-classification", model="./Models/emotion_model")
     
-    return gender_pipe, age_pipe, emotion_pipe
+    return processor, age_model, gender_pipe, emotion_pipe
 
-# --------------------------------------------------------
-
-# 3. Streamlit Interface
+# --- 3. STREAMLIT INTERFACE ---
 st.title("Voice Age & Emotion Detector")
-gender_pipe, age_pipe, emotion_pipe = setup_models()
+processor, age_model, gender_pipe, emotion_pipe = setup_models()
 
-uploaded_file = st.file_uploader("Upload a male voice note", type=["wav", "mp3"])
+uploaded_file = st.file_uploader("Upload voice note", type=["wav", "mp3"])
 
 if uploaded_file:
     st.audio(uploaded_file, format='audio/wav')
-
-    # LOAD AUDIO PROPERLY
-    # 1. Load the audio file into a numpy array (y) and sampling rate (sr)
-    # librosa.load accepts the file-like object directly
     y, sr = librosa.load(uploaded_file, sr=16000)
     
-    # 2. Pass 'y' (the numpy array) to the pipes instead of 'uploaded_file'
+    # 1. Gender Prediction
     gender_results = gender_pipe(y)
     gender = gender_results[0]['label'].lower()
-    
-    # Reset pointer for next model
-    uploaded_file.seek(0)
     
     if 'female' in gender:
         st.error("Upload male voice.")
     else:
-        # Age Detection
-        age_results = age_pipe(y)
+        # 2. Age Prediction (Using the Custom Model)
+        inputs = processor(y, sampling_rate=16000, return_tensors="pt")
+        with torch.no_grad():
+            _, logits_age, _ = age_model(inputs.input_values)
         
-        # Reset pointer for next model
-        uploaded_file.seek(0)
-        
-        # Extract age: Handle if model returns text like "The age is 65"
-        # This regex finds the first number in the string
-        import re
-        match = re.search(r'\d+', str(age_results['text']))
-        age = int(match.group()) if match else 0
-        
-        if age == 0:
-            st.warning("Could not clearly detect age.")
+        age = int(logits_age.item() * 100)
         
         # 3. Conditional Logic
+        if age == 0:
+            st.warning("Could not clearly detect age.")
         elif age > 60:
-            # Detect Emotion for Senior Citizens
-            emotion_results = emotion_pipe(uploaded_file)
+            emotion_results = emotion_pipe(y)
             emotion = emotion_results[0]['label']
             st.success(f"Detected Age: {age} (Senior Citizen)")
             st.info(f"Detected Emotion: {emotion}")
         else:
-            # Standard Age detection for others
             st.success(f"Detected Age: {age}")
